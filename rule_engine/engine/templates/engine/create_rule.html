@@ -1,0 +1,23 @@
+{% extends 'engine/base.html' %}
+
+{% block title %}Create Rule{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2 class="card-title">Create a New Rule</h2>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="rule_name" class="form-label">Rule Name</label>
+                <input type="text" id="rule_name" name="rule_name" class="form-control" placeholder="Enter rule name" required>
+            </div>
+            <div class="mb-3">
+                <label for="rule_string" class="form-label">Rule Expression</label>
+                <input type="text" id="rule_string" name="rule_string" class="form-control" placeholder="e.g., age > 30 AND salary > 50000" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Create Rule</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

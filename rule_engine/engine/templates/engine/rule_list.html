@@ -1,0 +1,63 @@
+{% extends 'engine/base.html' %}
+
+{% block title %}Rule List{% endblock %}
+
+{% block content %}
+<h2>List of Rules</h2>
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Rule Name</th>
+            <th>Rule String</th>
+            <th>Date Created</th>
+            <th>Select for Deletion</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for rule in rules %}
+        <tr>
+            <td>{{ rule.id }}</td>
+            <td>{{ rule.rule_name }}</td>
+            <td>{{ rule.rule_string }}</td>
+            <td>{{ rule.created_at }}</td>
+            <td><input type="checkbox" class="rule-checkbox" value="{{ rule.id }}"></td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5">No rules available.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<button id="delete-button" class="btn btn-danger">Delete Selected Rules</button>
+
+<script>
+    document.getElementById('delete-button').addEventListener('click', function() {
+        const selectedRules = [...document.querySelectorAll('.rule-checkbox:checked')].map(cb => cb.value);
+        if (selectedRules.length === 0) {
+            alert("No rules selected.");
+            return;
+        }
+        if (confirm("Are you sure you want to delete the selected rules?")) {
+            const formData = new FormData();
+            selectedRules.forEach(id => formData.append('rule_ids[]', id));
+            
+            fetch("{% url 'delete_rule' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            }).then(response => response.json()).then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert("Error deleting rules.");
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

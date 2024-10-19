@@ -1,0 +1,21 @@
+{% extends "engine/base.html" %}
+
+{% block title %}Combine Rules{% endblock %}
+
+{% block content %}
+<h1>Select Rules to Combine</h1>
+<form method="POST">
+    {% csrf_token %}
+    <ul>
+        {% for rule in rules %}
+        <li>
+            <input type="checkbox" name="rule_ids" value="{{ rule.id }}">
+            <strong>{{ rule.rule_name }}</strong>: {{ rule.rule_string }}
+        </li>
+        {% empty %}
+        <li>No rules available.</li>
+        {% endfor %}
+    </ul>
+    <button type="submit" class="btn btn-success mt-3">Combine Selected Rules</button>
+</form>
+{% endblock %}
