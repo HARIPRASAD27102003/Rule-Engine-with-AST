@@ -9,6 +9,49 @@ from .ast import Node
 from django.db import IntegrityError
 from django.contrib import messages  # type: ignore # Import the messages framework
 
+import re
+
+def validate_rule_string(rule_string):
+    """
+    Validates the rule string for errors such as:
+    - Missing operators
+    - Invalid comparisons
+    - Unmatched parentheses
+    """
+    # Basic operator and operand patterns
+    operator_pattern = r'\b(AND|OR)\b'
+    operand_pattern = r'([a-zA-Z_]+|\([a-zA-Z_ ]+\))\s*(>|<|=|!=|>=|<=)\s*\S+'
+    
+    # Check for unmatched parentheses
+    if rule_string.count('(') != rule_string.count(')'):
+        raise ValueError("Unmatched parentheses in rule string.")
+    
+    # Remove leading/trailing spaces
+    rule_string = rule_string.strip()
+
+    # Tokenize the rule string into operands and operators
+    tokens = re.split(r'(\s+AND\s+|\s+OR\s+)', rule_string)
+    
+    for i, token in enumerate(tokens):
+        token = token.strip()
+        
+        if not token:
+            continue  # Skip empty tokens
+        
+        # Odd indexed tokens should be operators
+        if i % 2 == 1:
+            if not re.match(operator_pattern, token):
+                raise ValueError(f"Invalid operator found: '{token}'")
+        else:
+            # Even indexed tokens should be operands (e.g., "age > 30")
+            # Strip leading and trailing parentheses from tokens
+            token = token.strip('() ')
+            if not re.match(operand_pattern, token):
+                raise ValueError(f"Invalid operand or comparison in: '{token}'")
+    
+    return True 
+
+
 
 class RuleListView(View):
     def get(self, request):
@@ -23,23 +66,29 @@ class CreateRuleView(View):
     def post(self, request):
         rule_name = request.POST.get('rule_name')
         rule_string = request.POST.get('rule_string')
-        
+
         if rule_name and rule_string:
             try:
+                # Validate the rule string before processing
+                validate_rule_string(rule_string)
+
                 # Create the AST from the rule string
                 ast_root = self.create_rule(rule_string)
-                ast_json = self.ast_to_json(ast_root)  # Serialize AST to JSON
+                ast_json = self.ast_to_json(ast_root)
 
-                # Save the rule with the AST JSON in the database
+                # Save the rule to the database
                 rule = Rule(rule_name=rule_name, rule_string=rule_string, ast_json=ast_json)
                 rule.save()
 
                 return JsonResponse({"status": "success", "ast": ast_json, "rule_id": rule.id})
 
             except IntegrityError:
-                # Handle the case where rule_name is not unique
-                return JsonResponse({"status": "error", "message": "Rule with this name already exists. Please choose a different name."})
-
+                return JsonResponse({"status": "error", "message": "Rule with this name already exists."})
+            
+            except ValueError as e:
+                # Catch and return any validation errors
+                return JsonResponse({"status": "error", "message": str(e)})
+            
             except Exception as e:
                 return JsonResponse({"status": "error", "message": str(e)})
         
@@ -171,6 +220,9 @@ class SaveCombinedRuleView(View):
 
         if rule_name and rule_string:
             try:
+                # Validate combined rule string before saving
+                validate_rule_string(rule_string)
+
                 # Call the static method directly
                 ast_root = CreateRuleView.create_rule(rule_string)
                 ast_json = CreateRuleView.ast_to_json(ast_root)
@@ -183,6 +235,12 @@ class SaveCombinedRuleView(View):
 
             except IntegrityError:
                 messages.error(request, "A rule with this name already exists. Please choose a different name.")
+                return redirect('combine_rules')
+
+            except ValueError as e:
+                # Handle invalid rule string format error
+                messages.error(request, f"Invalid Rule: {str(e)}")
+                print(str(e))
                 return redirect('combine_rules')
 
             except Exception as e:
