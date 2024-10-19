@@ -66,17 +66,18 @@ class CreateRuleView(View):
 
 class DeleteRuleView(View):
     def post(self, request):
-        # Get the list of selected rule IDs
-        rule_ids = request.POST.getlist('rule_ids')
+        try:
+            # Get the list of selected rule IDs
+            rule_ids = request.POST.getlist('rule_ids[]')  # Make sure you're using the correct key
 
-        # Check if any rules are selected for deletion
-        if rule_ids:
-            Rule.objects.filter(id__in=rule_ids).delete()  # Delete the selected rules
-            messages.success(request, "Selected rules deleted successfully.")
-        else:
-            messages.error(request, "No rules selected for deletion.")
-
-        return redirect('rule_list')  # Redirect to the rule list page after deletion
+            # Check if any rules are selected for deletion
+            if rule_ids:
+                Rule.objects.filter(id__in=rule_ids).delete()  # Delete the selected rules
+                return JsonResponse({"success": True, "message": "Selected rules deleted successfully."})
+            else:
+                return JsonResponse({"success": False, "message": "No rules selected for deletion."})
+        except Exception as e:
+            return JsonResponse({"success": False, "message": str(e)})
     
     
     

@@ -4,6 +4,7 @@
 
 {% block content %}
 <h2>List of Rules</h2>
+
 <table class="table table-hover">
     <thead>
         <tr>
@@ -40,6 +41,7 @@
             alert("No rules selected.");
             return;
         }
+
         if (confirm("Are you sure you want to delete the selected rules?")) {
             const formData = new FormData();
             selectedRules.forEach(id => formData.append('rule_ids[]', id));
@@ -54,8 +56,10 @@
                 if (data.success) {
                     window.location.reload();
                 } else {
-                    alert("Error deleting rules.");
+                    alert("Error deleting rules: " + data.message);
                 }
+            }).catch(error => {
+                alert("An error occurred: " + error);
             });
         }
     });
