@@ -49,7 +49,7 @@ def validate_rule_string(rule_string):
             if not re.match(operand_pattern, token):
                 raise ValueError(f"Invalid operand or comparison in: '{token}'")
     
-    return True 
+    return True
 
 
 
@@ -57,6 +57,8 @@ class RuleListView(View):
     def get(self, request):
         # Fetch all rules from the database
         rules = Rule.objects.all()
+        for rule in rules:
+            print(rule.ast_json)
         return render(request, 'engine/rule_list.html', {'rules': rules})
 
 class CreateRuleView(View):
@@ -73,45 +75,60 @@ class CreateRuleView(View):
                 validate_rule_string(rule_string)
 
                 # Create the AST from the rule string
-                ast_root = self.create_rule(rule_string)
+                ast_root = self.build_ast(rule_string)
                 ast_json = self.ast_to_json(ast_root)
 
                 # Save the rule to the database
                 rule = Rule(rule_name=rule_name, rule_string=rule_string, ast_json=ast_json)
                 rule.save()
 
-                return JsonResponse({"status": "success", "ast": ast_json, "rule_id": rule.id})
+                # Add success message
+                messages.success(request, "Rule successfully saved!")
+
+                return redirect('rule_list')  # Redirect to the rule list page
 
             except IntegrityError:
-                return JsonResponse({"status": "error", "message": "Rule with this name already exists."})
+                messages.error(request, "Rule with this name already exists.")
+                return redirect('create_rule')  # Redirect back to the create rule page if there is an error
             
             except ValueError as e:
-                # Catch and return any validation errors
-                return JsonResponse({"status": "error", "message": str(e)})
+                messages.error(request, str(e))
+                return redirect('create_rule')  # Handle validation errors
             
             except Exception as e:
-                return JsonResponse({"status": "error", "message": str(e)})
-        
-        return JsonResponse({"status": "error", "message": "Rule name or rule string not provided."})
-    @staticmethod
-    def create_rule(rule_string):
-        operators = ['AND', 'OR']
-        for op in operators:
-            if op in rule_string:
-                left, right = rule_string.split(f' {op} ', 1)
-                return Node('operator', op, CreateRuleView.create_rule(left.strip()), CreateRuleView.create_rule(right.strip()))
+                messages.error(request, str(e))
+                return redirect('create_rule')  # Handle unexpected errors
 
-        return Node('operand', rule_string.strip())
+        messages.error(request, "Rule name or rule string not provided.")
+        return redirect('create_rule')
+    @staticmethod
+    # def create_rule(rule_string):
+    #     operators = ['AND', 'OR']
+    #     for op in operators:
+    #         if op in rule_string:
+    #             left, right = rule_string.split(f' {op} ', 1)
+    #             return Node('operator', op, CreateRuleView.create_rule(left.strip()), CreateRuleView.create_rule(right.strip()))
+
+    #     return Node('operand', rule_string.strip())
+    def build_ast(condition):  # Add 'self' to the parameters
+        """Builds an AST from the given logical expression string."""
+        tokens = tokenize(condition)
+        ast = parse_expression(tokens)
+
+        if tokens:
+            raise ValueError("Extra tokens remaining after parsing")
+
+        return ast
     @staticmethod
     def ast_to_json(ast_root):
-        if ast_root.type == 'operator':
+        if ast_root['type'] == 'operator':
             return {
-                "type": ast_root.type,
-                "value": ast_root.value,
-                "left": CreateRuleView.ast_to_json(ast_root.left),
-                "right": CreateRuleView.ast_to_json(ast_root.right),
+                "type": ast_root['type'],
+                "value": ast_root['value'],
+                "left": CreateRuleView.ast_to_json(ast_root['left']),
+                "right": CreateRuleView.ast_to_json(ast_root['right']),
             }
-        return {"type": ast_root.type, "value": ast_root.value}
+        return {"type": ast_root['type'], "value": ast_root['value']}
 
 class DeleteRuleView(View):
     def post(self, request):
@@ -170,6 +187,8 @@ def combine_rules1(rule_strings, operator="AND"):
             combined_ast = combine_ast(combined_ast, ast, operator)
 
     return combined_ast
+
+
 def ast_to_rule_string(node):
     """Recursively converts an AST back into a rule string."""
     if not node:
@@ -197,24 +216,27 @@ def combine_rules_logic(rule_strings):
 def combine_rules(request):
     if request.method == 'POST':
         # print(request)
+        
         rule_ids = request.POST.getlist('rule_ids')
 
         selected_rules = Rule.objects.filter(id__in=rule_ids)
+        # print("h")
 
         rule_strings = [rule.rule_string for rule in selected_rules]
         # print(rule_strings)
 
         combined_rule = combine_rules_logic(rule_strings)
-
         return render(request, 'engine/combine_result.html', {'combined_rule': combined_rule})
 
     # For GET request, render the combine input form
-    rules = Rule.objects.all()
-    return render(request, 'engine/combine_rules.html', {'rules': rules})
+    else:
+        rules = Rule.objects.all()
+        return render(request, 'engine/combine_rules.html', {'rules': rules})   
 
 
 class SaveCombinedRuleView(View):
     def post(self, request):
+        # print("h")
         rule_name = request.POST.get('rule_name')
         rule_string = request.POST.get('rule_string')
 
@@ -224,7 +246,7 @@ class SaveCombinedRuleView(View):
                 validate_rule_string(rule_string)
 
                 # Call the static method directly
-                ast_root = CreateRuleView.create_rule(rule_string)
+                ast_root = CreateRuleView.build_ast(rule_string)
                 ast_json = CreateRuleView.ast_to_json(ast_root)
 
                 rule = Rule(rule_name=rule_name, rule_string=rule_string, ast_json=ast_json)
