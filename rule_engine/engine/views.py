@@ -136,7 +136,7 @@ class CreateRuleView(View):
 
             except IntegrityError:
                 messages.error(request, "Rule with this name already exists.")
-                return redirect('create_rule')  # Redirect back to the create rule page if there is an error
+                return redirect('rule_list')  # Redirect back to the create rule page if there is an error
             
             except ValueError as e:
                 messages.error(request, str(e))
