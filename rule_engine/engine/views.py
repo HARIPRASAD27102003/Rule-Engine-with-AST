@@ -1,5 +1,6 @@
 # engine/views.py
 
+import json
 from pyexpat.errors import messages
 from django.http import JsonResponse
 from django.views import View
@@ -50,6 +51,52 @@ def validate_rule_string(rule_string):
                 raise ValueError(f"Invalid operand or comparison in: '{token}'")
     
     return True
+
+def tokenize(expression):
+    """Tokenizes the input expression into meaningful components."""
+    # Match operators, identifiers, numbers, and string literals
+    tokens = re.findall(r'\s*([()<>!=]=?|AND|OR|[a-zA-Z_][a-zA-Z0-9_]*|\'[^\']*\'|\d+)\s*', expression)
+    return [token for token in tokens if token]  # Filter out empty tokens
+
+def parse_expression(tokens):
+    """Parses the tokens recursively to create an AST considering parentheses."""
+    def parse_primary():
+        """Parse a primary expression which can be an operand or a parenthesized expression."""
+        if tokens[0] == '(':
+            tokens.pop(0)  # Remove '('
+            expr = parse_expression(tokens)
+            tokens.pop(0)  # Remove ')'
+            return expr
+        else:
+            # Assuming the next token is an operand (e.g., "age > 30")
+            operand = tokens.pop(0)
+            # Continue to capture the complete condition
+            condition = operand
+            while tokens and tokens[0] not in ('AND', 'OR', ')'):
+                condition += ' ' + tokens.pop(0)
+            return {
+                "type": "operand",
+                "value": condition.strip()
+            }
+
+    def parse_operator():
+        """Parse binary operators and build the AST."""
+        left_node = parse_primary()  # Parse the left operand
+        while tokens:
+            if tokens[0] in ('AND', 'OR'):
+                operator = tokens.pop(0)  # Get the operator
+                right_node = parse_primary()  # Parse the right operand
+                left_node = {
+                    "type": "operator",
+                    "value": operator,
+                    "left": left_node,
+                    "right": right_node
+                }
+            else:
+                break
+        return left_node
+
+    return parse_operator()
 
 
 
@@ -272,4 +319,127 @@ class SaveCombinedRuleView(View):
 
         messages.error(request, "Rule name or rule string not provided.")
         return redirect('combine_rules')
+    def get(self, request):
+        # Handle GET request if needed
+        return render(request, 'engine/combine_rules.html')
 
+def evaluate_rule(ast_json, data):
+    """
+    Evaluates the rule based on the provided AST and data.
+    
+    :param ast_json: JSON representation of the rule's AST.
+    :param data: Dictionary containing attribute values (e.g., {"age": 35, "department": "Sales"}).
+    :return: True if the data satisfies the rule, False otherwise.
+    """
+    # Recursively evaluate the AST
+    def evaluate_node(node):
+        # Ensure that node is a dictionary and not a string
+        if isinstance(node, str):
+            # If node is a string, it's likely an operand that was misformatted
+            # or passed incorrectly; raise an exception for clarity
+            raise ValueError(f"Unexpected string node: {node}")
+
+        node_type = node.get("type")
+
+        # If it's an operator node (AND/OR)
+        if node_type == "operator":
+            left_result = evaluate_node(node["left"])
+            right_result = evaluate_node(node["right"])
+
+            if node["value"] == "AND":
+                return left_result and right_result
+            elif node["value"] == "OR":
+                return left_result or right_result
+
+        # If it's an operand node (e.g., age > 30)
+        elif node_type == "operand":
+            condition = node["value"]
+            attribute, operator, target_value = parse_condition(condition)
+
+            # Get the actual value from the data
+            actual_value = data.get(attribute)
+            if actual_value is None:
+                return False  # If the attribute is missing in data, return False
+
+            # Evaluate the condition based on the operator
+            return compare(actual_value, operator, target_value)
+
+        return False
+
+    # Parse the condition string (e.g., "age > 30")
+    def parse_condition(condition):
+    
+        # Remove any leading or trailing parentheses
+        condition = condition.strip('()')
+
+        # Regex to match the condition (e.g., "age > 30")
+        pattern = r"([a-zA-Z_]+)\s*(>|<|=|!=|>=|<=)\s*(\S+)"
+        match = re.match(pattern, condition)
+        
+        if match:
+            attribute = match.group(1)
+            operator = match.group(2)
+            target_value = match.group(3)
+            
+            # Convert target_value to the appropriate type (int, float, etc.)
+            if target_value.isdigit():
+                target_value = int(target_value)
+            elif target_value.replace('.', '', 1).isdigit():
+                target_value = float(target_value)
+            else:
+                target_value = target_value.strip("'")  # Assuming it's a string if not a number
+            
+            return attribute, operator, target_value
+        
+        raise ValueError(f"Invalid condition format: {condition}")
+
+    # Compare the actual value with the target value based on the operator
+    def compare(actual_value, operator, target_value):
+        if operator == ">":
+            return actual_value > target_value
+        elif operator == "<":
+            return actual_value < target_value
+        elif operator == "=":
+            return actual_value == target_value
+        elif operator == "!=":
+            return actual_value != target_value
+        elif operator == ">=":
+            return actual_value >= target_value
+        elif operator == "<=":
+            return actual_value <= target_value
+        return False
+
+    # Start evaluation from the root of the AST
+    return evaluate_node(ast_json)
+
+class EvaluateRuleView(View):
+    def get(self, request):
+        rules = Rule.objects.all()  # Fetch all rules from the database
+        return render(request, 'engine/evaluate_rules.html', {'rules': rules})
+
+    def post(self, request):
+        # Get the selected rules and expression from the form
+        selected_rule_ids = request.POST.getlist('rules')  # List of selected rule IDs
+        expression = request.POST.get('expression')  # The expression to evaluate
+
+        print("Raw expression:", expression)  # Debugging line
+
+        # Fetch the selected rules
+        selected_rules = Rule.objects.filter(id__in=selected_rule_ids)
+
+        # Prepare data for evaluation
+        evaluation_results = []
+
+        # Attempt to parse the expression into JSON
+        try:
+            data = json.loads(expression)  # Parse the JSON expression
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {str(e)}")  # Log the error
+            return JsonResponse({"success": False, "message": "Invalid JSON format for expression."})
+
+        for rule in selected_rules:
+            rule_ast = rule.ast_json  # Load the AST JSON
+            result = evaluate_rule(rule_ast, data)  # Evaluate the rule against the data
+            evaluation_results.append((rule.rule_name, result))
+
+        return render(request, 'engine/evaluation_results.html', {'results': evaluation_results})

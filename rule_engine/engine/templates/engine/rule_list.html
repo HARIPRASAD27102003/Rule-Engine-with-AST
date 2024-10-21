@@ -4,24 +4,27 @@
 
 {% block content %}
 <h2>List of Rules</h2>
+{% if messages %}
+    <div class="alert alert-info">
+        {% for message in messages %}
+            {{ message }}
+        {% endfor %}
+    </div>
+{% endif %}
 
 <table class="table table-hover">
     <thead>
         <tr>
-            <th>ID</th>
             <th>Rule Name</th>
             <th>Rule String</th>
-            <th>Date Created</th>
             <th>Select for Deletion</th>
         </tr>
     </thead>
     <tbody>
         {% for rule in rules %}
         <tr>
-            <td>{{ rule.id }}</td>
             <td>{{ rule.rule_name }}</td>
             <td>{{ rule.rule_string }}</td>
-            <td>{{ rule.created_at }}</td>
             <td><input type="checkbox" class="rule-checkbox" value="{{ rule.id }}"></td>
         </tr>
         {% empty %}

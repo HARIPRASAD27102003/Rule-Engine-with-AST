@@ -1,0 +1,34 @@
+{% comment %} {% extends 'engine/base.html' %} {% endcomment %}
+
+{% block title %}Evaluation Results{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2 class="card-title">Evaluation Results</h2>
+
+        {% if results %}
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Rule Name</th>
+                        <th>Evaluation Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule_name, result in results %}
+                        <tr>
+                            <td>{{ rule_name }}</td>
+                            <td>{{ result|yesno:"True,False" }}</td>  <!-- Assuming result is a boolean -->
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No evaluation results available.</p>
+        {% endif %}
+        
+        <a href="{% url 'evaluate_rule' %}" class="btn btn-primary mt-3">Evaluate More Rules</a>
+    </div>
+</div>
+{% endblock %}
