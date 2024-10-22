@@ -3,5 +3,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('engine.urls')),  # Include the engine app's URLs
+    path('rule-engine/', include('engine.urls')),  # Include the engine app's URLs
 ]
