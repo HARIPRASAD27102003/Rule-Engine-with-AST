@@ -4,18 +4,25 @@
 
 {% block content %}
 <h1>Select Rules to Combine</h1>
-<form method="POST">
+<form method="post" action="{% url 'combine_rules' %}">
     {% csrf_token %}
-    <ul>
-        {% for rule in rules %}
-        <li>
-            <input type="checkbox" name="rule_ids" value="{{ rule.id }}">
-            <strong>{{ rule.rule_name }}</strong>: {{ rule.rule_string }}
-        </li>
-        {% empty %}
-        <li>No rules available.</li>
-        {% endfor %}
-    </ul>
-    <button type="submit" class="btn btn-success mt-3">Combine Selected Rules</button>
+    <h3>Select Rules to Combine</h3>
+    {% for rule in rules %}
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="rule_ids" value="{{ rule.id }}">
+            <label class="form-check-label">{{ rule.rule_name }} ({{ rule.rule_string }})</label>
+        </div>
+    {% endfor %}
+
+    <div class="form-group mt-3">
+        <label for="combine_operator">Choose Combination Operator:</label>
+        <select id="combine_operator" name="combine_operator" class="form-control">
+            <option value="AND">AND</option>
+            <option value="OR">OR</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-3">Combine Rules</button>
 </form>
+
 {% endblock %}

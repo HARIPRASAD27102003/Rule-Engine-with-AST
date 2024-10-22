@@ -17,14 +17,16 @@
         <tr>
             <th>Rule Name</th>
             <th>Rule String</th>
+            <th>AST</th>
             <th>Select for Deletion</th>
         </tr>
     </thead>
     <tbody>
-        {% for rule in rules %}
+        {% for rule in rules_with_ast %}
         <tr>
             <td>{{ rule.rule_name }}</td>
             <td>{{ rule.rule_string }}</td>
+            <td><pre>{{ rule.rule_ast }}</pre></td>
             <td><input type="checkbox" class="rule-checkbox" value="{{ rule.id }}"></td>
         </tr>
         {% empty %}

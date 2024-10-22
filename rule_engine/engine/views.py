@@ -104,9 +104,36 @@ class RuleListView(View):
     def get(self, request):
         # Fetch all rules from the database
         rules = Rule.objects.all()
+
+        # Prepare a list of rule names and their AST representations
+        rules_with_ast = []
         for rule in rules:
-            print(rule.ast_json)
-        return render(request, 'engine/rule_list.html', {'rules': rules})
+            ast_tree = self.json_to_ast(rule.ast_json)  # Convert JSON back to AST format
+            rules_with_ast.append({
+                'rule_name': rule.rule_name,
+                'rule_string': rule.rule_string,
+                'rule_ast': ast_tree
+            })
+            print(ast_tree)
+
+        return render(request, 'engine/rule_list.html', {'rules_with_ast': rules_with_ast})
+
+    def json_to_ast(self, json_node, indent=0):
+        """Convert the JSON back to an AST tree format with indentation."""
+        if not isinstance(indent, int):  # Check if indent is an integer
+            raise TypeError(f"Expected 'indent' to be an integer, got {type(indent).__name__}")
+
+        prefix = "    " * indent  # Create indentation based on depth
+        
+        if json_node['type'] == 'operator':
+            # For operators, recursively build the string for left and right subtrees
+            left_subtree = self.json_to_ast(json_node['left'], indent + 1)
+            right_subtree = self.json_to_ast(json_node['right'], indent + 1)
+            return f"{prefix}{json_node['value']}\n{left_subtree}\n{right_subtree}"
+        else:
+            # For operands, just return their value with indentation
+            return f"{prefix}{json_node['value']}"
+
 
 class CreateRuleView(View):
     def get(self, request):
@@ -254,9 +281,9 @@ def ast_to_rule_string(node):
         return f"({left_rule} {node.value} {right_rule})"
 
 
-def combine_rules_logic(rule_strings):
-    # print(rule_strings)
-    combined_ast = combine_rules1(rule_strings)
+def combine_rules_logic(rule_strings, operator):
+    """Combines the given rule strings using the specified operator."""
+    combined_ast = combine_rules1(rule_strings, operator)
     ans = ast_to_rule_string(combined_ast)
     return ans
 
