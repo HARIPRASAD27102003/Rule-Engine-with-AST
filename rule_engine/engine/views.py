@@ -107,6 +107,12 @@ class EditRuleView(View):
             return JsonResponse({'success': False, 'message': 'Rule name is required'}, status=400)
 
         try:
+            # Validate the rule string before further processing
+            validate_rule_string(rule_string)
+        except ValueError as e:
+            return JsonResponse({'success': False, 'message': f'Invalid rule string: {str(e)}'}, status=400)
+
+        try:
             # Find the rule by rule_name and update the rule_string
             rule = Rule.objects.get(rule_name=rule_name)
             rule.rule_string = rule_string
