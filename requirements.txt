@@ -1,0 +1,2 @@
+Django==3.2.7  # Replace with the version of Django you're using
+djangorestframework==3.12.4  # For API integration if any
