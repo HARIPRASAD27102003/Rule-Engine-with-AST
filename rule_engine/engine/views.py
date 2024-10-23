@@ -98,7 +98,26 @@ def parse_expression(tokens):
 
     return parse_operator()
 
+class EditRuleView(View):
+    def post(self, request):
+        rule_name = request.POST.get('rule_name')
+        rule_string = request.POST.get('rule_string')
 
+        if not rule_name:
+            return JsonResponse({'success': False, 'message': 'Rule name is required'}, status=400)
+
+        try:
+            # Find the rule by rule_name and update the rule_string
+            rule = Rule.objects.get(rule_name=rule_name)
+            rule.rule_string = rule_string
+            
+            ast_root = CreateRuleView.build_ast(rule_string)
+            ast_json = CreateRuleView.ast_to_json(ast_root)
+            rule.ast_json = ast_json
+            rule.save()
+            return JsonResponse({'success': True})
+        except Rule.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Rule not found'}, status=404)
 
 class RuleListView(View):
     def get(self, request):
@@ -108,6 +127,7 @@ class RuleListView(View):
         # Prepare a list of rule names and their AST representations
         rules_with_ast = []
         for rule in rules:
+            # print(rule.id)
             ast_tree = self.json_to_ast(rule.ast_json)  # Convert JSON back to AST format
             rules_with_ast.append({
                 'rule_name': rule.rule_name,
@@ -206,18 +226,15 @@ class CreateRuleView(View):
 
 class DeleteRuleView(View):
     def post(self, request):
-        try:
-            # Get the list of selected rule IDs
-            rule_ids = request.POST.getlist('rule_ids[]')  # Make sure you're using the correct key
+        rule_names = request.POST.getlist('rule_names[]')
 
-            # Check if any rules are selected for deletion
-            if rule_ids:
-                Rule.objects.filter(id__in=rule_ids).delete()  # Delete the selected rules
-                return JsonResponse({"success": True, "message": "Selected rules deleted successfully."})
-            else:
-                return JsonResponse({"success": False, "message": "No rules selected for deletion."})
-        except Exception as e:
-            return JsonResponse({"success": False, "message": str(e)})
+        if not rule_names:
+            return JsonResponse({'success': False, 'message': 'No rule names provided'}, status=400)
+
+        # Delete rules by rule_name instead of rule_id
+        Rule.objects.filter(rule_name__in=rule_names).delete()
+
+        return JsonResponse({'success': True})
     
     
     
@@ -289,23 +306,34 @@ def combine_rules_logic(rule_strings, operator):
 
 def combine_rules(request):
     if request.method == 'POST':
-        # print(request)
-        
-        rule_ids = request.POST.getlist('rule_ids')
+        # Get selected rule IDs
+        rule_ids = request.POST.getlist('rule_ids[]')
 
+        # Get the selected operator (AND/OR)
+        operator = request.POST.get('combine_operator')
+
+        if not rule_ids or len(rule_ids) < 2:
+            return render(request, 'engine/combine_rules.html', {'error': 'Please select at least two rules to combine.'})
+
+        if not operator:
+            return render(request, 'engine/combine_rules.html', {'error': 'Please select a combination operator.'})
+
+        # Fetch the selected rules from the database
         selected_rules = Rule.objects.filter(id__in=rule_ids)
-        # print("h")
-
         rule_strings = [rule.rule_string for rule in selected_rules]
-        # print(rule_strings)
 
-        combined_rule = combine_rules_logic(rule_strings)
-        return render(request, 'engine/combine_result.html', {'combined_rule': combined_rule})
+        # Combine the rules using the selected operator
+        try:
+            combined_rule = combine_rules_logic(rule_strings, operator)  # Pass rule_strings and operator
+            return render(request, 'engine/combine_result.html', {'combined_rule': combined_rule})
+        except Exception as e:
+            return render(request, 'engine/combine_rules.html', {'error': str(e)})
 
     # For GET request, render the combine input form
     else:
         rules = Rule.objects.all()
-        return render(request, 'engine/combine_rules.html', {'rules': rules})   
+        return render(request, 'engine/combine_rules.html', {'rules': rules})
+   
 
 
 class SaveCombinedRuleView(View):

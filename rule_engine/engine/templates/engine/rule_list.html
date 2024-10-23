@@ -19,15 +19,32 @@
             <th>Rule String</th>
             <th>AST</th>
             <th>Select for Deletion</th>
+            <th>Edit Rule</th>
         </tr>
     </thead>
     <tbody>
         {% for rule in rules_with_ast %}
         <tr>
             <td>{{ rule.rule_name }}</td>
-            <td>{{ rule.rule_string }}</td>
+            <td>
+                <!-- Display rule string and hide the edit form initially -->
+                <span id="rule-display-{{ rule.rule_name }}">{{ rule.rule_string }}</span>
+
+                <!-- Hidden edit form -->
+                <form id="rule-edit-{{ rule.rule_name }}" method="post" style="display: none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="rule_name" value="{{ rule.rule_name }}">
+                    <input type="text" name="rule_string" value="{{ rule.rule_string }}" required>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="cancelEdit('{{ rule.rule_name }}')">Cancel</button>
+                </form>
+            </td>
             <td><pre>{{ rule.rule_ast }}</pre></td>
-            <td><input type="checkbox" class="rule-checkbox" value="{{ rule.id }}"></td>
+            <td><input type="checkbox" class="rule-checkbox" value="{{ rule.rule_name }}"></td>
+            <td>
+                <!-- Edit Button -->
+                <button class="btn btn-warning" onclick="editRule('{{ rule.rule_name }}')">Edit</button>
+            </td>
         </tr>
         {% empty %}
         <tr>
@@ -37,20 +54,22 @@
     </tbody>
 </table>
 
+
 <button id="delete-button" class="btn btn-danger">Delete Selected Rules</button>
 
 <script>
     document.getElementById('delete-button').addEventListener('click', function() {
-        const selectedRules = [...document.querySelectorAll('.rule-checkbox:checked')].map(cb => cb.value);
+        const selectedRules = [...document.querySelectorAll('.rule-checkbox:checked')].map(cb => cb.value).filter(Boolean);
+    
         if (selectedRules.length === 0) {
             alert("No rules selected.");
             return;
         }
-
+    
         if (confirm("Are you sure you want to delete the selected rules?")) {
             const formData = new FormData();
-            selectedRules.forEach(id => formData.append('rule_ids[]', id));
-            
+            selectedRules.forEach(name => formData.append('rule_names[]', name));
+    
             fetch("{% url 'delete_rule' %}", {
                 method: 'POST',
                 body: formData,
@@ -67,6 +86,41 @@
                 alert("An error occurred: " + error);
             });
         }
+    });
+    function editRule(ruleName) {
+        document.getElementById('rule-display-' + ruleName).style.display = 'none';
+        document.getElementById('rule-edit-' + ruleName).style.display = 'block';
+    }
+    
+    // Function to cancel the edit and revert back to the original display
+    function cancelEdit(ruleName) {
+        document.getElementById('rule-display-' + ruleName).style.display = 'block';
+        document.getElementById('rule-edit-' + ruleName).style.display = 'none';
+    }
+    
+    // Add event listener for form submission to handle rule modification
+    document.querySelectorAll('form[id^="rule-edit-"]').forEach(form => {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();  // Prevent form from submitting the traditional way
+    
+            const formData = new FormData(form);
+    
+            fetch("{% url 'edit_rule' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            }).then(response => response.json()).then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert("Error editing rule: " + data.message);
+                }
+            }).catch(error => {
+                alert("An error occurred: " + error);
+            });
+        });
     });
 </script>
 {% endblock %}

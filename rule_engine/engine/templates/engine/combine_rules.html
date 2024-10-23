@@ -9,7 +9,7 @@
     <h3>Select Rules to Combine</h3>
     {% for rule in rules %}
         <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="rule_ids" value="{{ rule.id }}">
+            <input class="form-check-input" type="checkbox" name="rule_ids[]" value="{{ rule.id }}">
             <label class="form-check-label">{{ rule.rule_name }} ({{ rule.rule_string }})</label>
         </div>
     {% endfor %}

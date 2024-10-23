@@ -8,5 +8,5 @@ urlpatterns = [
     path('combine-rules/', views.combine_rules, name='combine_rules'),
     path('evaluate-rules/', views.EvaluateRuleView.as_view(), name='evaluate_rule'),
      path('save-combined-rule/', views.SaveCombinedRuleView.as_view(), name='save_combined_rule'),
-     
+     path('rules/edit/', views.EditRuleView.as_view(), name='edit_rule'),
 ]
